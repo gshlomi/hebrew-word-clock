@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>שעון עברי</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Hebrew:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Warm off-white, paper-like */
+      background-color: #f2ede4;
+      /* Subtle noise texture via SVG filter */
+      position: relative;
+      border: 6px solid #1a1a1a;
+    }
+
+    /* Paper texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .clock-wrapper {
+      /* 25% padding on each side = 50% max width */
+      width: 50%;
+      text-align: center;
+      z-index: 1;
+      position: relative;
+    }
+
+    #clock-text {
+      font-family: 'Noto Serif Hebrew', 'David', serif;
+      font-size: clamp(1.8rem, 4.5vw, 4.2rem);
+      font-weight: 300;
+      line-height: 1.75;
+      color: #1a1a1a;
+      direction: rtl;
+      text-align: center;
+      letter-spacing: 0.01em;
+      /* Smooth fade transition */
+      transition: opacity 0.7s ease-in-out;
+      /* Allow natural wrapping */
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    #clock-text.fade-out {
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="clock-wrapper">
+    <div id="clock-text" aria-live="polite" aria-label="שעון עברי"></div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ─────────────────────────────────────────────
+    // Hour words – feminine form (1–12)
+    // ─────────────────────────────────────────────
+    const HOURS = [
+      '',                     // 0 – unused
+      'אַחַת',                // 1
+      'שְׁתַּיִם',            // 2
+      'שָׁלוֹשׁ',             // 3
+      'אַרְבַּע',             // 4
+      'חָמֵשׁ',               // 5
+      'שֵׁשׁ',                // 6
+      'שֶׁבַע',               // 7
+      'שְׁמוֹנֶה',            // 8
+      'תֵּשַׁע',              // 9
+      'עֶשֶׂר',               // 10
+      'אַחַת עֶשְׂרֵה',       // 11
+      'שְׁתֵּים עֶשְׂרֵה'     // 12
+    ];
+
+    // Hour words for "X to HOUR" form – with לְ/לִ prefix
+    const HOURS_TO = [
+      '',
+      'לְאַחַת',              // 1
+      'לִשְׁתַּיִם',          // 2
+      'לְשָׁלוֹשׁ',           // 3
+      'לְאַרְבַּע',           // 4
+      'לְחָמֵשׁ',             // 5
+      'לְשֵׁשׁ',              // 6
+      'לְשֶׁבַע',             // 7
+      'לִשְׁמוֹנֶה',          // 8
+      'לְתֵשַׁע',             // 9
+      'לְעֶשֶׂר',             // 10
+      'לְאַחַת עֶשְׂרֵה',     // 11
+      'לִשְׁתֵּים עֶשְׂרֵה'   // 12
+    ];
+
+    // ─────────────────────────────────────────────
+    // Minute words – forward counting (0–58 only;
+    // 35/40/45/50/55/59 are handled separately)
+    // ─────────────────────────────────────────────
+    const MINUTE_WORDS = {
+       0: '',
+       1: 'וְדַקָּה',
+       2: 'וּשְׁתֵּי דַּקּוֹת',
+       3: 'וְשָׁלוֹשׁ דַּקּוֹת',
+       4: 'וְאַרְבַּע דַּקּוֹת',
+       5: 'וַחֲמִשָּׁה',
+       6: 'וְשֵׁשׁ דַּקּוֹת',
+       7: 'וְשֶׁבַע דַּקּוֹת',
+       8: 'וּשְׁמוֹנֶה דַּקּוֹת',
+       9: 'וְתֵשַׁע דַּקּוֹת',
+      10: 'וַעֲשָׂרָה',
+      11: 'וְאַחַת עֶשְׂרֵה דַּקּוֹת',
+      12: 'וּשְׁתֵּים עֶשְׂרֵה דַּקּוֹת',
+      13: 'וּשְׁלוֹשׁ עֶשְׂרֵה דַּקּוֹת',
+      14: 'וְאַרְבַּע עֶשְׂרֵה דַּקּוֹת',
+      15: 'וָרֶבַע',
+      16: 'וְשֵׁשׁ עֶשְׂרֵה דַּקּוֹת',
+      17: 'וּשְׁבַע עֶשְׂרֵה דַּקּוֹת',
+      18: 'וּשְׁמוֹנֶה עֶשְׂרֵה דַּקּוֹת',
+      19: 'וְתִשְׁעָה עֶשְׂרֵה דַּקּוֹת',
+      20: 'וְעֶשְׂרִים',
+      21: 'וְעֶשְׂרִים וְאַחַת',
+      22: 'וְעֶשְׂרִים וּשְׁתַּיִם',
+      23: 'וְעֶשְׂרִים וְשָׁלוֹשׁ',
+      24: 'וְעֶשְׂרִים וְאַרְבַּע',
+      25: 'וְעֶשְׂרִים וַחֲמִשָּׁה',
+      26: 'וְעֶשְׂרִים וָשֵׁשׁ',
+      27: 'וְעֶשְׂרִים וְשֶׁבַע',
+      28: 'וְעֶשְׂרִים וּשְׁמוֹנֶה',
+      29: 'וְעֶשְׂרִים וְתֵשַׁע',
+      30: 'וָחֵצִי',
+      31: 'שְׁלוֹשִׁים וְאַחַת',
+      32: 'שְׁלוֹשִׁים וּשְׁתַּיִם',
+      33: 'שְׁלוֹשִׁים וְשָׁלוֹשׁ',
+      34: 'שְׁלוֹשִׁים וְאַרְבַּע',
+      // 35 → handled by TO_MINUTES
+      36: 'שְׁלוֹשִׁים וָשֵׁשׁ',
+      37: 'שְׁלוֹשִׁים וְשֶׁבַע',
+      38: 'שְׁלוֹשִׁים וּשְׁמוֹנֶה',
+      39: 'שְׁלוֹשִׁים וְתֵשַׁע',
+      // 40 → handled by TO_MINUTES
+      41: 'אַרְבָּעִים וְאַחַת',
+      42: 'אַרְבָּעִים וּשְׁתַּיִם',
+      43: 'אַרְבָּעִים וְשָׁלוֹשׁ',
+      44: 'אַרְבָּעִים וְאַרְבַּע',
+      // 45 → handled by TO_MINUTES
+      46: 'אַרְבָּעִים וָשֵׁשׁ',
+      47: 'אַרְבָּעִים וְשֶׁבַע',
+      48: 'אַרְבָּעִים וּשְׁמוֹנֶה',
+      49: 'אַרְבָּעִים וְתֵשַׁע',
+      // 50 → handled by TO_MINUTES
+      51: 'חֲמִשִּׁים וְאַחַת',
+      52: 'חֲמִשִּׁים וּשְׁתַּיִם',
+      53: 'חֲמִשִּׁים וְשָׁלוֹשׁ',
+      54: 'חֲמִשִּׁים וְאַרְבַּע',
+      // 55 → handled by TO_MINUTES
+      56: 'חֲמִשִּׁים וָשֵׁשׁ',
+      57: 'חֲמִשִּׁים וְשֶׁבַע',
+      58: 'חֲמִשִּׁים וּשְׁמוֹנֶה',
+      // 59 → handled by TO_MINUTES
+    };
+
+    // ─────────────────────────────────────────────
+    // "To" form – exact minutes only
+    // ─────────────────────────────────────────────
+    const TO_MINUTES = {
+      35: 'עֶשְׂרִים וַחֲמִשָּׁה',
+      40: 'עֶשְׂרִים',
+      45: 'רֶבַע',
+      50: 'עֲשָׂרָה',
+      55: 'חֲמִשָּׁה',
+      59: 'דַּקָּה'
+    };
+
+    // ─────────────────────────────────────────────
+    // Time-of-day suffix
+    // ─────────────────────────────────────────────
+    function getTimeOfDay(hour, minute) {
+      const total = hour * 60 + minute;
+      if (hour === 0 && minute === 0) return '';           // חֲצוֹת – no suffix
+      if (total <  5 * 60) return 'בַּלַּיְלָה';          // 00:01–04:59
+      if (hour  === 5)     return 'לִפְנוֹת בּוֹקֶר';     // 05:00–05:59
+      if (hour  <  12)     return 'בַּבֹּקֶר';            // 06:00–11:59
+      if (hour  === 12 && minute === 0) return '';         // צָהֳרַיִם – no suffix
+      if (total < 17 * 60) return 'אַחַר הַצָּהֳרַיִם';  // 12:01–16:59
+      if (hour  <  21)     return 'בָּעֶרֶב';             // 17:00–20:59
+      return 'בַּלַּיְלָה';                               // 21:00–23:59
+    }
+
+    // ─────────────────────────────────────────────
+    // Main builder
+    // ─────────────────────────────────────────────
+    function buildTimeString(h24, m) {
+      // ── Special whole-word cases ──
+      if (h24 === 0  && m === 0)  return 'חֲצוֹת';
+      if (h24 === 12 && m === 0)  return 'צָהֳרַיִם';
+
+      const tod  = getTimeOfDay(h24, m);
+      // 12-hour index (1–12)
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+
+      // ── "To" form ──
+      if (TO_MINUTES[m] !== undefined) {
+        // next hour (1–12)
+        const next = (h12 % 12) + 1;
+        return `${TO_MINUTES[m]} ${HOURS_TO[next]} ${tod}`.trim();
+      }
+
+      // ── Forward counting ──
+      const hourWord   = HOURS[h12];
+      const minuteWord = MINUTE_WORDS[m] !== undefined ? MINUTE_WORDS[m] : '';
+
+      if (minuteWord === '') {
+        return `${hourWord} ${tod}`.trim();
+      }
+
+      // Minutes that are standalone compound numbers (no leading ו) get a comma:
+      // 21–29 (עשרים וX), 31–34/36–39 (שלושים), 41–44/46–49 (ארבעים), 51–54/56–58 (חמישים)
+      const needsComma = (m >= 21 && m <= 29) ||
+                         (m >= 31 && m <= 39 && m !== 35) ||
+                         (m >= 41 && m <= 49 && m !== 45) ||
+                         (m >= 51 && m <= 58 && m !== 55);
+
+      if (needsComma) {
+        // Strip leading ו + niqqud (e.g. וְ וּ וַ וָ) when comma is used
+        const minClean = minuteWord.replace(/^ו[\u05B0-\u05C7]?/, '');
+        return `${hourWord}, ${minClean} ${tod}`.trim();
+      }
+      return `${hourWord} ${minuteWord} ${tod}`.trim();
+    }
+
+    // ─────────────────────────────────────────────
+    // DOM update with fade
+    // ─────────────────────────────────────────────
+    const clockEl = document.getElementById('clock-text');
+    let lastText  = null;
+    let fadeTimer = null;
+
+    function updateClock() {
+      const now   = new Date();
+      const h     = now.getHours();
+      const m     = now.getMinutes();
+      const text  = buildTimeString(h, m);
+
+      if (text === lastText) return;
+      lastText = text;
+
+      if (fadeTimer) clearTimeout(fadeTimer);
+
+      // Fade out → swap text → fade in
+      clockEl.classList.add('fade-out');
+      fadeTimer = setTimeout(() => {
+        clockEl.textContent = text;
+        clockEl.classList.remove('fade-out');
+        fadeTimer = null;
+      }, 700);
+    }
+
+    // Initial paint (no fade)
+    (function init() {
+      const now  = new Date();
+      clockEl.textContent = buildTimeString(now.getHours(), now.getMinutes());
+      lastText = clockEl.textContent;
+    })();
+
+    // Poll every 5 s so minute changes are caught promptly
+    setInterval(updateClock, 5000);
+  </script>
+</body>
+</html>
