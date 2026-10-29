@@ -1,120 +1,95 @@
-# שעון מילים עברי — Arduino / ESP32-C3
+# Hebrew Word Clock — Seeed XIAO 7.5-inch ePaper Panel
 
-קוד Arduino להפעלת השעון ישירות על XIAO 7.5" ePaper Panel.
+Targets [this integrated Seeed panel](https://www.seeedstudio.com/XIAO-7-5-ePaper-Panel-p-6416.html): **XIAO ESP32-C3, 4 MB flash, 800×480 monochrome, UC8179**. This is not the separate ePaper breakout board, an ESP32-S3 panel, or an arbitrary 7.5-inch display.
 
----
+## Build and upload (recommended: PlatformIO)
 
-## דרישות חומרה
+Install [PlatformIO](https://platformio.org/install) (CLI validated with version 6.2.0), then from the repository root:
 
-| רכיב | מוצר |
-|------|------|
-| לוח | Seeed XIAO ESP32-C3 |
-| מסך | XIAO 7.5" ePaper Panel (800×480, מובנה בלוח) |
+1. Copy `arduino/hebrew_clock/secrets.example.h` to `arduino/hebrew_clock/secrets.h`.
+2. Set your **2.4 GHz** WiFi SSID and password in `secrets.h` (git-ignored; do not commit credentials).
+3. Connect the panel using a USB-C **data** cable and turn its power switch on.
+4. Run:
 
----
+```sh
+pio run
+pio run --target upload --upload-port /dev/ttyACM0
+pio device monitor --port /dev/ttyACM0 --baud 115200
+```
 
-## ספריות — התקנה ב-Arduino IDE
+Replace the port with your device's port (e.g. `COM5` on Windows). If upload cannot connect, hold BOOT, press/release RESET, then release BOOT and reconnect USB. See [Seeed's recovery instructions](https://wiki.seeedstudio.com/xiao_075inch_epaper_panel/#programming-buttons).
 
-פתח את **Tools → Manage Libraries** והתקן:
+The build pins Espressif32 **6.12.0** (Arduino ESP32 **2.0.17**) and Seeed_GFX commit `0dfdd7135425be82b5bb4b4b58d74dd51ab29a59`. No SPIFFS upload, separate font upload, OpenFontRender or NTPClient is required. A build without `secrets.h` uses placeholders and cannot connect until you configure real credentials.
 
-| שם ספרייה | מחבר | גרסה מינימלית |
-|-----------|------|---------------|
-| `GxEPD2` | ZinggJM | ≥ 1.5.8 |
-| `OpenFontRender` | takkaO | ≥ 1.3.0 |
-| `NTPClient` | Fabrice Weinberg | ≥ 3.2.1 |
+## Arduino IDE alternative
 
----
+Install Espressif's **esp32 2.0.17** board package and select **XIAO_ESP32C3** / **XIAO ESP32C3**, 4 MB flash, default partition scheme. Install the [pinned Seeed_GFX ZIP](https://github.com/Seeed-Studio/Seeed_GFX/archive/0dfdd7135425be82b5bb4b4b58d74dd51ab29a59.zip). Avoid a simultaneously installed TFT_eSPI library: both expose `TFT_eSPI.h`. Open `hebrew_clock/hebrew_clock.ino`, configure `secrets.h`, select the USB port and upload. The CLI build is the automated verification path; the IDE flow is not separately tested.
 
-## גופן
+## Exact display configuration and pin mapping
 
-1. הורד את **NotoSerifHebrew-Light.ttf** מ:
-   https://fonts.google.com/noto/specimen/Noto+Serif+Hebrew
-
-2. צור תיקייה `data/` בתוך תיקיית הסקיצה (ליד `hebrew_clock.ino`):
-   ```
-   hebrew_clock/
-   ├── hebrew_clock.ino
-   └── data/
-       └── NotoSerifHebrew-Light.ttf
-   ```
-
-3. העלה לפלאש (SPIFFS) דרך:
-   **Tools → ESP32 Sketch Data Upload**
-   (דורש תוסף: https://github.com/lorol/arduino-esp32fs-plugin)
-
----
-
-## הגדרות
-
-ערוך את תחילת הקובץ:
+`driver.h` selects Seeed's official configuration:
 
 ```cpp
-#define WIFI_SSID     "שם_הרשת_שלך"
-#define WIFI_PASSWORD "סיסמה_שלך"
-#define UTC_OFFSET_SEC  7200   // ישראל UTC+2 (קיץ: 10800)
+#define BOARD_SCREEN_COMBO 502
+#define USE_XIAO_EPAPER_DRIVER_BOARD
 ```
 
----
+The library configures SPI and all control pins. **No manual rewiring is needed** on the integrated product. XIAO pin labels are not GPIO numbers:
 
-## חיבור פינים
+| Signal | XIAO label | ESP32-C3 GPIO |
+|---|---|---|
+| SCK | D8 | 8 |
+| MOSI / DIN | D10 | 10 |
+| CS | D1 | 3 |
+| DC | D3 | 5 |
+| BUSY | D2 | 4 |
+| RESET | D0 | 2 |
 
-הפאנל של Seeed XIAO 7.5" מגיע עם קונקטור מוכן — אין צורך בחיווט ידני.
-אם יש חיבור ידני:
+D9 / GPIO9 is the library's SPI MISO assignment; this write-only display does not need a MISO data connection. `setRotation(0)` keeps native **800×480** coordinates.
 
-| XIAO ESP32-C3 | ePaper |
-|---------------|--------|
-| D10 (GPIO10) | CS |
-| D8 (GPIO8) | DC |
-| D9 (GPIO9) | RST |
-| D7 (GPIO7) | BUSY |
-| D4 / MOSI | DIN |
-| D5 / SCK | CLK |
-| 3.3V | VCC |
-| GND | GND |
+Sources: [Seeed Arduino guide](https://wiki.seeedstudio.com/xiao_075inch_epaper_panel_arduino/), [preset 502](https://github.com/Seeed-Studio/Seeed_GFX/blob/0dfdd7135425be82b5bb4b4b58d74dd51ab29a59/User_Setups/Setup502_Seeed_XIAO_EPaper_7inch5.h), [driver-board pins](https://github.com/Seeed-Studio/Seeed_GFX/blob/0dfdd7135425be82b5bb4b4b58d74dd51ab29a59/User_Setups/EPaper_Board_Pins_Setups.h).
 
----
+## Hebrew, layout, and timekeeping
 
-## הגדרת לוח ב-Arduino IDE
+- Full Hebrew words, including nikud, are shaped **at asset-generation time** using Pillow/libraqm (HarfBuzz/FriBidi) and bundled Noto Serif Hebrew. Firmware draws the resulting 1-bit word images in RTL order, wrapping and centering lines within 720 pixels. It does not reverse UTF-8 bytes or separate combining marks.
+- All **1,440 minute strings** and both status messages are checked for clipping and missing words. Current assets: **76 words, 114,660 bitmap bytes**, at most two lines. See [layout-preview.png](layout-preview.png).
+- The original Hebrew time wording is retained. The browser version is unchanged.
+- ESP32 system SNTP supplies UTC; a POSIX Israel timezone rule applies DST automatically. The rule is checked against IANA `Asia/Jerusalem` for 2025–2035; future legal timezone changes may require an update.
+- Before the first successful sync, the panel shows “ממתין לשעה” (waiting for time), or “אין חיבור” (no connection). It never treats uptime as wall-clock time. WiFi reconnects and SNTP retries in the background.
+- After initial sync, the system clock continues through temporary WiFi outages, with normal oscillator drift. A reboot without network cannot restore accurate time.
+- One full refresh per minute; Seeed_GFX sleeps the **display** after each refresh. The **ESP32 remains awake** for WiFi and timekeeping. This is a USB-powered-first build: do not expect Seeed's advertised multi-month deep-sleep battery life at this refresh rate. Partial refresh/deep-sleep optimization is not implemented.
 
-- **Board:** XIAO ESP32-C3
-  (דרך Boards Manager: `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`)
-- **Partition Scheme:** Default 4MB with SPIFFS
-- **Upload Speed:** 921600
+## Regenerate assets and run verification
 
----
+Normal firmware builds use the committed bitmaps. To change wording/font/layout:
 
-## סנן ה-ePaper הנכון
-
-המסך 7.5" 800×480 משתמש ב-driver **UC8159 / GDEW075T7**.
-בקוד מוגדר:
-```cpp
-#define GxEPD2_DRIVER_CLASS  GxEPD2_750_T7
+```sh
+python -m pip install pillow==13.0.0
+python arduino/tools/generate_words.py
+python arduino/tools/test_render.py
+python arduino/tools/test_timezone.py
+pio run
 ```
-אם המסך שלך שונה, בדוק את רשימת ה-drivers של GxEPD2:
-https://github.com/ZinggJM/GxEPD2#supported-displays
 
----
+The generator needs a host C++ compiler with AddressSanitizer/UndefinedBehaviorSanitizer and Pillow with RAQM. It compiles the **same** `time_words.h` used by firmware, checks all minute layouts, then writes `word_bitmaps.h` and the preview. The bundled [Noto Serif Hebrew](https://github.com/google/fonts/tree/main/ofl/notoserifhebrew) is licensed under [SIL OFL](fonts/OFL.txt). Generated assets retain this license. CI repeats asset checks and the ESP32-C3 build.
 
-## הערות
+## Hardware acceptance test (still required)
 
-- **ניקוד עברי**: נשמר כ-UTF-8 literal בקוד. ה-IDE ו-OpenFontRender תומכים ב-Unicode מלא.
-- **רענון**: המסך מתרענן כל דקה (בשינוי הדקה). ePaper אינו מתאים לרענון מהיר יותר.
-- **RTL**: OpenFontRender מוגדר ל-`RightToLeft` כך שהטקסט מוצג נכון.
-- **ללא WiFi**: אם החיבור נכשל, המסך יציג "אין חיבור".
+Compilation and offline previews cannot prove physical panel behavior. On the actual unit, verify:
 
----
+1. The boot/status text is black-on-white, upright, and not mirrored; no BUSY timeout appears.
+2. After WiFi/NTP sync, the displayed time matches Israel time, with correct RTL and nikud.
+3. A minute change refreshes once, without cropped text or persistent ghosting.
+4. Booting with WiFi unavailable leaves a status message; restoring WiFi recovers automatically.
+5. Review the serial free-heap reading and measure battery runtime if battery operation is required.
 
-## מבנה הקוד
+## Local build validation
 
-```
-setup()
- ├── init SPIFFS + load font
- ├── init ePaper display
- └── connect WiFi + start NTP
+Verified 2026-10-29 using the pinned dependencies:
 
-loop()
- ├── update NTP
- ├── buildTimeString(h, m) → Hebrew text
- ├── drawClock(text) → render on ePaper
- └── sleep until next minute
-```
+- ESP32-C3 build: **PASS**; flash **899,710 / 1,310,720 bytes (68.6%)** of the default application partition. The board has 4 MB total flash; no larger partition is needed.
+- Static RAM: **39,148 / 327,680 bytes (11.9%)**. The display also allocates a **48,000-byte framebuffer on the heap**; static RAM statistics do not include WiFi/runtime allocations. Physical free-heap testing remains required.
+- Actual firmware renderer, executed with a bounds-checking host display stub under ASan/UBSan: **1,440 minute layouts + 2 status messages pass**.
+- Israel timezone rule: **192,816 half-hour samples** match IANA for 2025–2035.
+- Four representative previews visually inspected for RTL/nikud. Hardware is **not yet tested**.
+- Upstream build warnings about unavailable C3 DMA and missing touch CS are expected; neither feature is used.

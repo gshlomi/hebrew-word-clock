@@ -1,0 +1,22 @@
+name: XIAO ePaper firmware
+on:
+  push:
+    paths: ['arduino/**', 'platformio.ini', '.github/workflows/firmware.yml']
+  pull_request:
+    paths: ['arduino/**', 'platformio.ini', '.github/workflows/firmware.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.2.0 pillow==13.0.0
+      - run: python arduino/tools/generate_words.py
+      - run: git diff --exit-code -- arduino/hebrew_clock/word_bitmaps.h arduino/layout-preview.png
+      - run: python arduino/tools/test_render.py
+      - run: python arduino/tools/test_timezone.py
+      - run: pio run
