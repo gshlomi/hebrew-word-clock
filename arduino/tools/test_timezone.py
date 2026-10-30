@@ -3,12 +3,31 @@
 import datetime as dt
 import os
 from pathlib import Path
-import re
+import subprocess
+import tempfile
 import time
 from zoneinfo import ZoneInfo
 
-source = (Path(__file__).resolve().parents[1]/'hebrew_clock/hebrew_clock.ino').read_text()
-os.environ['TZ'] = re.search(r'ISRAEL_TZ = "([^"]+)"', source)[1]
+sketch = Path(__file__).resolve().parents[1]/'hebrew_clock'
+# Compile the same config header used by firmware, including an override.
+with tempfile.TemporaryDirectory() as temp:
+    source = Path(temp)/'timezone.cpp'
+    binary = Path(temp)/'timezone'
+    source.write_text('#include <cstdio>\n#include "config.h"\n'
+                      'int main() { std::puts(CLOCK_TIMEZONE); }\n')
+    def configured_timezone(*flags):
+        subprocess.run(['c++', '-I', str(sketch), *flags, str(source),
+                        '-o', str(binary)], check=True)
+        return subprocess.check_output([str(binary)], text=True).strip()
+    default_timezone = configured_timezone()
+    override = configured_timezone('-DCLOCK_TIMEZONE="UTC0"')
+    assert override == 'UTC0', override
+os.environ['TZ'] = override
+time.tzset()
+for epoch in (1735689600, 1751328000):
+    assert time.localtime(epoch)[:6] == time.gmtime(epoch)[:6]
+print('Timezone override: UTC0 remains UTC in winter and summer')
+os.environ['TZ'] = default_timezone
 time.tzset()
 zone = ZoneInfo('Asia/Jerusalem')
 start = int(dt.datetime(2025,1,1,tzinfo=dt.timezone.utc).timestamp())

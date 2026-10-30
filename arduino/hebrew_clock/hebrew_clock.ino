@@ -14,10 +14,8 @@
 #else
 #include "secrets.example.h"
 #endif
+#include "config.h"
 
-// Israel: last Friday in March at 02:00; last Sunday in October at 02:00.
-// POSIX week-4 Thursday + 26 hours expresses the last Friday in March.
-constexpr const char* ISRAEL_TZ = "IST-2IDT,M3.4.4/26,M10.5.0";
 EPaper display;
 int64_t lastMinute = -1;
 uint32_t lastRetry = 0;
@@ -80,7 +78,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  configTzTime(ISRAEL_TZ, "pool.ntp.org", "time.google.com");
+  configTzTime(CLOCK_TIMEZONE, "pool.ntp.org", "time.google.com");
   lastRetry = millis();
 }
 

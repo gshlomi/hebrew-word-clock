@@ -7,7 +7,7 @@ Targets [this integrated Seeed panel](https://www.seeedstudio.com/XIAO-7-5-ePape
 Install [PlatformIO](https://platformio.org/install) (CLI validated with version 6.2.0), then from the repository root:
 
 1. Copy `arduino/hebrew_clock/secrets.example.h` to `arduino/hebrew_clock/secrets.h`.
-2. Set your **2.4 GHz** WiFi SSID and password in `secrets.h` (git-ignored; do not commit credentials).
+2. Set your **2.4 GHz** WiFi SSID and password in `secrets.h` (git-ignored; do not commit credentials). Optionally set `CLOCK_TIMEZONE` there as described below.
 3. Connect the panel using a USB-C **data** cable and turn its power switch on.
 4. Run:
 
@@ -20,6 +20,31 @@ pio device monitor --port /dev/ttyACM0 --baud 115200
 Replace the port with your device's port (e.g. `COM5` on Windows). If upload cannot connect, hold BOOT, press/release RESET, then release BOOT and reconnect USB. See [Seeed's recovery instructions](https://wiki.seeedstudio.com/xiao_075inch_epaper_panel/#programming-buttons).
 
 The build pins Espressif32 **6.12.0** (Arduino ESP32 **2.0.17**) and Seeed_GFX commit `0dfdd7135425be82b5bb4b4b58d74dd51ab29a59`. No SPIFFS upload, separate font upload, OpenFontRender or NTPClient is required. A build without `secrets.h` uses placeholders and cannot connect until you configure real credentials.
+
+## Timezone configuration
+
+The default is **Israel time**, with automatic daylight saving. To choose another
+timezone, add a `CLOCK_TIMEZONE` setting to `arduino/hebrew_clock/secrets.h`, for example:
+
+```cpp
+#define CLOCK_TIMEZONE "UTC0"
+```
+
+Use a **POSIX TZ rule**, not an IANA name such as `Asia/Jerusalem`:
+
+| Location | `CLOCK_TIMEZONE` value |
+|---|---|
+| Israel (default) | `"IST-2IDT,M3.4.4/26,M10.5.0"` |
+| UTC | `"UTC0"` |
+| New York | `"EST5EDT,M3.2.0/2,M11.1.0/2"` |
+| Berlin | `"CET-1CEST,M3.5.0/2,M10.5.0/3"` |
+
+POSIX offset signs are reversed: `CET-1` means UTC+1. Rules with DST apply it
+automatically. Legal timezone changes may require updating the rule.
+**Rebuild and upload** after changing this compile-time setting; there is no
+runtime settings menu. Existing `secrets.h` files without the setting continue to
+use Israel time via the fallback in `hebrew_clock/config.h`. Hebrew wording is
+unchanged; only the local hour and minute change.
 
 ## Arduino IDE alternative
 
@@ -54,7 +79,7 @@ Sources: [Seeed Arduino guide](https://wiki.seeedstudio.com/xiao_075inch_epaper_
 - Full Hebrew words, including nikud, are shaped **at asset-generation time** using Pillow/libraqm (HarfBuzz/FriBidi) and bundled Noto Serif Hebrew. Firmware draws the resulting 1-bit word images in RTL order, wrapping and centering lines within 720 pixels. It does not reverse UTF-8 bytes or separate combining marks.
 - All **1,440 minute strings** and both status messages are checked for clipping and missing words. The generator selects the largest shared font that fits every phrase within the 40-pixel margins. Current font: **98 px** (previously 64 px). Current assets: **76 words, 255,432 bitmap bytes**, at most three lines. See [layout-preview.png](layout-preview.png).
 - The original Hebrew time wording is retained. The browser version is unchanged.
-- ESP32 system SNTP supplies UTC; a POSIX Israel timezone rule applies DST automatically. The rule is checked against IANA `Asia/Jerusalem` for 2025–2035; future legal timezone changes may require an update.
+- ESP32 system SNTP supplies UTC; the configured POSIX timezone rule supplies local time and DST (Israel by default). The default rule is checked against IANA `Asia/Jerusalem` for 2025–2035; future legal timezone changes may require an update.
 - Before the first successful sync, the panel shows “ממתין לשעה” (waiting for time), or “אין חיבור” (no connection). It never treats uptime as wall-clock time. WiFi reconnects and SNTP retries in the background.
 - After initial sync, the system clock continues through temporary WiFi outages, with normal oscillator drift. A reboot without network cannot restore accurate time.
 - One full refresh per minute; Seeed_GFX sleeps the **display** after each refresh. The **ESP32 remains awake** for WiFi and timekeeping. This is a USB-powered-first build: do not expect Seeed's advertised multi-month deep-sleep battery life at this refresh rate. Partial refresh/deep-sleep optimization is not implemented.
@@ -78,7 +103,7 @@ The generator needs a host C++ compiler with AddressSanitizer/UndefinedBehaviorS
 Compilation and offline previews cannot prove physical panel behavior. On the actual unit, verify:
 
 1. The boot/status text is black-on-white, upright, and not mirrored; no BUSY timeout appears.
-2. After WiFi/NTP sync, the displayed time matches Israel time, with correct RTL and nikud.
+2. After WiFi/NTP sync, the displayed time matches your configured timezone, with correct RTL and nikud.
 3. A minute change refreshes once, without cropped text or persistent ghosting.
 4. Booting with WiFi unavailable leaves a status message; restoring WiFi recovers automatically.
 5. Review the serial free-heap reading and measure battery runtime if battery operation is required.
