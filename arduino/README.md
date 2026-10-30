@@ -52,7 +52,7 @@ Sources: [Seeed Arduino guide](https://wiki.seeedstudio.com/xiao_075inch_epaper_
 ## Hebrew, layout, and timekeeping
 
 - Full Hebrew words, including nikud, are shaped **at asset-generation time** using Pillow/libraqm (HarfBuzz/FriBidi) and bundled Noto Serif Hebrew. Firmware draws the resulting 1-bit word images in RTL order, wrapping and centering lines within 720 pixels. It does not reverse UTF-8 bytes or separate combining marks.
-- All **1,440 minute strings** and both status messages are checked for clipping and missing words. Current assets: **76 words, 114,660 bitmap bytes**, at most two lines. See [layout-preview.png](layout-preview.png).
+- All **1,440 minute strings** and both status messages are checked for clipping and missing words. The generator selects the largest shared font that fits every phrase within the 40-pixel margins. Current font: **98 px** (previously 64 px). Current assets: **76 words, 255,432 bitmap bytes**, at most three lines. See [layout-preview.png](layout-preview.png).
 - The original Hebrew time wording is retained. The browser version is unchanged.
 - ESP32 system SNTP supplies UTC; a POSIX Israel timezone rule applies DST automatically. The rule is checked against IANA `Asia/Jerusalem` for 2025–2035; future legal timezone changes may require an update.
 - Before the first successful sync, the panel shows “ממתין לשעה” (waiting for time), or “אין חיבור” (no connection). It never treats uptime as wall-clock time. WiFi reconnects and SNTP retries in the background.

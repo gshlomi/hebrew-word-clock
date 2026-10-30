@@ -29,13 +29,37 @@ char text[160]; buildTimeString(h,m,text,sizeof(text)); puts(text); } }
 assert len(phrases) == 1440
 phrases += ['אין חיבור', 'ממתין לשעה']
 words = sorted(set(word for phrase in phrases for word in phrase.split()))
-font = ImageFont.truetype(str(ROOT/'arduino/fonts/NotoSerifHebrew.ttf'), 64)
-# Fixed full-word bitmaps preserve HarfBuzz mark positioning, including nikud.
-boxes = {w: font.getbbox(w, direction='rtl') for w in words}
-top = min(b[1] for b in boxes.values())
-bottom = max(b[3] for b in boxes.values())
-height = bottom-top+4
+# Maximize a shared font across every minute, retaining 40px panel margins.
 gap, line_gap, max_width = 18, 16, 720
+font_path = str(ROOT/'arduino/fonts/NotoSerifHebrew.ttf')
+def fits(boxes, height):
+    widths = {w: b[2]-b[0]+4 for w, b in boxes.items()}
+    if max(widths.values()) > max_width:
+        return False
+    for phrase in phrases:
+        rows, width = 1, 0
+        for word in phrase.split():
+            added = widths[word] + (gap if width else 0)
+            if width and width + added > max_width:
+                rows += 1
+                width = widths[word]
+            else:
+                width += added
+        if rows*height + (rows-1)*line_gap > 400:
+            return False
+    return True
+
+# Descending exhaustive search handles non-monotonic font hinting.
+for font_size in range(480, 0, -1):
+    font = ImageFont.truetype(font_path, font_size)
+    boxes = {w: font.getbbox(w, direction='rtl') for w in words}
+    top = min(b[1] for b in boxes.values())
+    height = max(b[3] for b in boxes.values())-top+4
+    if fits(boxes, height):
+        break
+else:
+    raise RuntimeError('No font size fits the panel')
+# Full-word bitmaps preserve Hebrew shaping and nikud.
 images = {}
 for word, (left, _, right, _) in boxes.items():
     im = Image.new('1', (right-left+4, height))
@@ -91,4 +115,4 @@ for n, minute in enumerate([0, 11*60+12, 12*60, 23*60+59]):
         preview.paste('black', (xoff+x, yoff+30+y), images[word])
 preview.save(ROOT/'arduino/layout-preview.png')
 print(json.dumps({'minutes_checked':1440, 'unique_words':len(words), 'max_lines':max_lines,
-                  'word_height':height, 'bitmap_bytes':sum(len(im.tobytes()) for im in images.values())}))
+                  'font_size':font_size, 'word_height':height, 'bitmap_bytes':sum(len(im.tobytes()) for im in images.values())}))
