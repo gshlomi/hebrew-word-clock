@@ -9,7 +9,7 @@ A minimalist clock that writes the time in Hebrew words, with nikud and right-to
 | HTML / browser | [HTML source](index.html) — open directly in a browser, or serve as a static website. |
 | Arduino / ePaper | [Build and upload guide](arduino/README.md) — PlatformIO and Arduino IDE instructions. |
 
-**Live HTML version on Vercel:** deployment URL awaiting confirmation.
+**Live HTML version on Vercel:** [Open the Hebrew Word Clock](https://hebrew-clock-six.vercel.app/).
 
 ## Webpage screenshots
 
