@@ -43,6 +43,6 @@ pio run --target upload --upload-port /dev/ttyACM0
 
 Replace `/dev/ttyACM0` with your device's port, such as `COM5` on Windows.
 
-After upload, open `http://<device-ip>/` on your LAN for diagnostics and persistent timezone/syslog settings. The firmware defaults to Israel time with automatic daylight saving and refreshes the display once per minute.
+After upload, open `http://hebrew-clock.local/` on your LAN for diagnostics and persistent timezone/syslog settings (or `http://<device-ip>/` if mDNS resolution is unavailable). The firmware defaults to Israel time with automatic daylight saving and refreshes the display once per minute.
 
 See the **[complete Arduino guide](arduino/README.md)** for Arduino IDE setup, troubleshooting, timezone configuration and hardware verification. This is a USB-powered-first build; deep-sleep battery optimization is not implemented.

@@ -16,9 +16,9 @@
 //              New York "EST5EDT,M3.2.0/2,M11.1.0/2"
 //              Berlin "CET-1CEST,M3.5.0/2,M10.5.0/3"
 
-// Optional: device hostname used by DHCP and in syslog messages.
+// Optional: device hostname used by DHCP, mDNS and in syslog messages.
 // Default: "hebrew-clock". Use a short ASCII hostname without spaces.
-// This does not enable mDNS; open diagnostics at http://<device-ip>/.
+// Diagnostics are at http://hebrew-clock.local/ (mDNS) or http://<device-ip>/.
 #define CLOCK_HOSTNAME "hebrew-clock"
 
 // Optional: remote syslog server's numeric IPv4 address (not a DNS name).

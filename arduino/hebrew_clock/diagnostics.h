@@ -1,5 +1,6 @@
 #pragma once
 #include <WebServer.h>
+#include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <esp_system.h>
 #include <esp_timer.h>
@@ -21,6 +22,7 @@ WebServer server(80);
 WiFiUDP udp;
 IPAddress syslogAddress;
 bool syslogEnabled = false;
+bool mdnsStarted = false;
 uint32_t syslogSent = 0, syslogFailed = 0;
 uint64_t uptime() { return esp_timer_get_time() / 1000ULL; }
 
@@ -158,6 +160,18 @@ void task(void*) {
     int state = WiFi.status();
     if (state != previous) {
       log(6, "WiFi status=%d IP=%s RSSI=%d reset_reason=%d", state, WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)esp_reset_reason()); previous = state;
+      if (state == WL_CONNECTED && !mdnsStarted) {
+        if (MDNS.begin(CLOCK_HOSTNAME)) {
+          MDNS.addService("http", "tcp", 80);
+          mdnsStarted = true;
+          log(6, "mDNS started: http://%s.local/ IP=%s", CLOCK_HOSTNAME, WiFi.localIP().toString().c_str());
+        } else {
+          log(4, "mDNS start failed; use http://%s/", WiFi.localIP().toString().c_str());
+        }
+      } else if (state != WL_CONNECTED && mdnsStarted) {
+        MDNS.end(); mdnsStarted = false;
+        log(6, "mDNS stopped (WiFi disconnected)");
+      }
     }
     if (state != WL_CONNECTED && uptime() - retry >= 30000) { WiFi.reconnect(); retry = uptime(); }
     if (!synced && time(nullptr) >= 1704067200) { synced = true; log(6, "System time synchronized"); }

@@ -48,7 +48,7 @@ Hebrew wording is unchanged; only the local hour and minute change.
 
 ### Runtime settings webpage
 
-After the initial USB firmware upload, open `http://<device-ip>/`:
+After the initial USB firmware upload, open `http://hebrew-clock.local/` (mDNS; requires a client that resolves `.local` names, such as Windows 10+, macOS, most Linux and Android via some browsers). If mDNS fails, find **hebrew-clock** in your router's DHCP clients and open `http://<device-ip>/`:
 
 1. Choose an IANA location such as **Asia/Jerusalem** from the timezone dropdown.
 2. Set **Enable remote syslog**, server IPv4 and UDP port as desired.
@@ -146,8 +146,7 @@ Build/render/timezone checks verified 2026-10-31 using the pinned dependencies:
 ## Wi-Fi diagnostics and remote syslog
 
 After uploading this firmware by USB, find **hebrew-clock** in your router's DHCP
-clients and open `http://<device-ip>/`. The hostname is a DHCP label, not a promise
-that `hebrew-clock.local` resolves. The status area refreshes every five seconds;
+clients and open `http://<device-ip>/`. The firmware enables mDNS, so `http://hebrew-clock.local/` should resolve on networks and clients that support `.local` names; the DHCP hostname alone does **not** guarantee name resolution. If mDNS resolution fails, the IP address still works. The status area refreshes every five seconds;
 `/status` returns plain-text diagnostics and `/logs` downloads the last 48 log
 records. It shows uptime, numeric ESP-IDF reset reason, local time/sync validity,
 Wi-Fi/IP/RSSI, current/minimum heap, display-update start/return times, and syslog
