@@ -15,6 +15,7 @@
 #include "secrets.example.h"
 #endif
 #include "config.h"
+#include "diagnostics.h"
 
 EPaper display;
 int64_t lastMinute = -1;
@@ -38,7 +39,7 @@ void drawClock(const char* text) {
   char* state = nullptr;
   for (char* token = strtok_r(copy, " ", &state); token; token = strtok_r(nullptr, " ", &state)) {
     const WordBitmap* word = findWord(token);
-    if (!word || count >= 24) { Serial.println("ERROR: regenerate word assets"); return; }
+    if (!word || count >= 24) { Diagnostics::log(3, "ERROR: regenerate word assets"); return; }
     int added = word->width + (widths[line] ? WORD_GAP : 0);
     if (widths[line] && widths[line] + added > TEXT_WIDTH) {
       ends[line] = count;
@@ -51,7 +52,7 @@ void drawClock(const char* text) {
   }
   ends[line] = count;
   int totalHeight = (line+1)*WORD_HEIGHT + line*LINE_GAP;
-  if (totalHeight > 400) { Serial.println("ERROR: text exceeds panel"); return; }
+  if (totalHeight > 400) { Diagnostics::log(3, "ERROR: text exceeds panel"); return; }
   display.fillScreen(TFT_WHITE);
   int y = (480-totalHeight)/2;
   for (int row=0; row<=line; ++row) {
@@ -63,29 +64,35 @@ void drawClock(const char* text) {
     }
     y += WORD_HEIGHT + LINE_GAP;
   }
+  Diagnostics::refresh(true);
   display.update(); // Full refresh; Seeed driver sleeps the panel afterward.
+  Diagnostics::refresh(false);
 }
 
 void setup() {
   Serial.begin(115200);
-  display.begin();
-  display.setRotation(0); // Native 800 x 480 landscape coordinates.
-  if (!display.getPointer() || display.width()!=800 || display.height()!=480) {
-    Serial.println("ERROR: display buffer or geometry");
-    while (true) delay(1000);
-  }
-  drawClock("ממתין לשעה");
   WiFi.mode(WIFI_STA);
+  WiFi.setHostname(CLOCK_HOSTNAME);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   configTzTime(CLOCK_TIMEZONE, "pool.ntp.org", "time.google.com");
+  if (!Diagnostics::begin()) Serial.println("ERROR: diagnostics task allocation failed");
+  Diagnostics::setPhase("display initialization");
+  display.begin();
+  display.setRotation(0); // Native 800 x 480 landscape coordinates.
+  if (!display.getPointer() || display.width()!=800 || display.height()!=480) {
+    Diagnostics::log(3, "ERROR: display buffer or geometry");
+    while (true) delay(1000);
+  }
+  drawClock("ממתין לשעה");
+  Diagnostics::setPhase("clock running");
   lastRetry = millis();
 }
 
 void loop() {
   const bool online = WiFi.status() == WL_CONNECTED;
   if (!online && millis()-lastRetry >= 30000UL) {
-    WiFi.reconnect();
+    // Reconnection is handled by the independent diagnostic task.
     lastRetry = millis();
   }
   time_t now = time(nullptr);
@@ -107,7 +114,7 @@ void loop() {
     buildTimeString(local.tm_hour, local.tm_min, text, sizeof(text));
     drawClock(text);
     lastMinute = now/60;
-    Serial.printf("%02d:%02d heap=%u\n", local.tm_hour, local.tm_min, ESP.getFreeHeap());
+    Diagnostics::log(6, "clock %02d:%02d heap=%u", local.tm_hour, local.tm_min, ESP.getFreeHeap());
   }
   delay(200);
 }

@@ -110,11 +110,75 @@ Compilation and offline previews cannot prove physical panel behavior. On the ac
 
 ## Local build validation
 
-Verified 2026-10-29 using the pinned dependencies:
+Build/render/timezone checks verified 2026-10-31 using the pinned dependencies:
 
-- ESP32-C3 build: **PASS**; flash **899,710 / 1,310,720 bytes (68.6%)** of the default application partition. The board has 4 MB total flash; no larger partition is needed.
-- Static RAM: **39,148 / 327,680 bytes (11.9%)**. The display also allocates a **48,000-byte framebuffer on the heap**; static RAM statistics do not include WiFi/runtime allocations. Physical free-heap testing remains required.
+- ESP32-C3 build: **PASS**; flash **1,094,706 / 1,310,720 bytes (83.5%)** of the default application partition. The board has 4 MB total flash; no larger partition is needed.
+- Static RAM: **48,500 / 327,680 bytes (14.8%)**. The display also allocates a **48,000-byte framebuffer on the heap**; static RAM statistics do not include WiFi/runtime allocations, the 6 KB diagnostic task stack, or its 24-record queue. Physical free-heap testing remains required.
 - Actual firmware renderer, executed with a bounds-checking host display stub under ASan/UBSan: **1,440 minute layouts + 2 status messages pass**.
 - Israel timezone rule: **192,816 half-hour samples** match IANA for 2025–2035.
 - Four representative previews visually inspected for RTL/nikud. Hardware is **not yet tested**.
 - Upstream build warnings about unavailable C3 DMA and missing touch CS are expected; neither feature is used.
+
+## Wi-Fi diagnostics and remote syslog
+
+After uploading this firmware by USB, find **hebrew-clock** in your router's DHCP
+clients and open `http://<device-ip>/`. The hostname is a DHCP label, not a promise
+that `hebrew-clock.local` resolves. The read-only page refreshes every five seconds;
+`/status` returns plain-text diagnostics and `/logs` downloads the last 48 log
+records. It shows uptime, numeric ESP-IDF reset reason, local time/sync validity,
+Wi-Fi/IP/RSSI, current/minimum heap, display-update start/return times, and syslog
+counters. Update return means the driver returned, not that the panel physically
+changed. Logs include boot, connection transitions, initial time synchronization,
+refresh boundaries, application errors, and a heartbeat every minute.
+
+HTTP, Wi-Fi reconnection and UDP forwarding run in a separate FreeRTOS task,
+started **before display initialization**. Display code only appends bounded log
+records and queues them without waiting for network I/O. This can keep diagnostics
+alive during a blocked display call; it cannot survive a whole-chip hang, disabled
+interrupts/scheduler, power loss, or loss of Wi-Fi. The C3 is single-core. HTTP is
+single-client and a slow client can delay syslog in the diagnostic task, but not
+block the display task. A stale-data warning appears if browser polling fails.
+
+### Send logs to a syslog server
+
+Add these settings to your local, git-ignored `arduino/hebrew_clock/secrets.h`:
+
+```cpp
+#define CLOCK_HOSTNAME "hebrew-clock"       // short ASCII hostname, no spaces
+#define CLOCK_SYSLOG_IP "192.168.1.50"      // replace with server's IPv4 address
+#define CLOCK_SYSLOG_PORT 514               // UDP listener port
+```
+
+Rebuild and upload. Syslog is disabled by default (empty address); only numeric
+IPv4 is supported. Configure the server to accept **UDP**, with RFC5424 messages,
+facility **local0**, application **hebrew-clock**. Packets use a NILVALUE timestamp
+and include device uptime in milliseconds; use the receiver's arrival timestamp
+for wall-clock correlation, including during NTP failures. For rsyslog, the usual
+UDP input is `module(load="imudp")` and `input(type="imudp" port="514")`; merge
+with existing server configuration rather than adding duplicate listeners.
+
+Forwarding is best effort: UDP has no acknowledgement, and a locally sent packet
+is not proof of receipt. Offline records stay only in the recent RAM ring; they
+are not replayed after reconnect. A 24-record transmit queue bounds memory and
+reports overflow. Logs and refresh markers reset at reboot; reset reason is
+reported again on network connection. Library-internal Serial output is **not**
+captured/forwarded; use USB serial for driver-specific BUSY messages. No flash
+logging is performed.
+
+This is an unauthenticated HTTP page and unencrypted syslog for a trusted LAN;
+do not port-forward it to the Internet. No Wi-Fi password is exposed by the page.
+
+### Hardware verification after upload
+
+1. Confirm the page is reachable and uptime advances while the display refreshes.
+2. Confirm the server receives connection/heartbeat and refresh start/return logs.
+3. Leave running beyond the reported ~90-minute failure window. If the panel
+   freezes, save `/status` and `/logs` before resetting it; compare the last
+   refresh start/return and continuing heartbeats in remote logs.
+4. Temporarily interrupt Wi-Fi, restore it and verify reconnection/page/syslog
+   recovery. The display should continue using system time after initial sync.
+5. A controlled simulated display-task stall (with scheduler still running)
+   should leave HTTP/heartbeats responsive; whole-chip hangs cannot be covered.
+
+These on-device/network checks remain required; a successful compile and offline
+renderer tests do not prove runtime behavior or syslog delivery.

@@ -21,14 +21,22 @@ with tempfile.TemporaryDirectory() as temp:
 #include "time_words.h"
 #include "word_bitmaps.h"
 constexpr int TFT_WHITE=1, TFT_BLACK=0;
-struct { void println(const char*) { assert(false && "renderer reported an error"); } } Serial;
+namespace Diagnostics {
+  bool busy = false;
+  int starts = 0, ends = 0;
+  void log(int severity, const char*, ...) { assert(severity > 3 && "renderer reported an error"); }
+  void refresh(bool start) {
+    assert(start != busy); busy = start;
+    if (start) ++starts; else ++ends;
+  }
+}
 struct {
   int updates=0, words=0;
   void fillScreen(int) { words=0; }
   void drawBitmap(int x, int y, const uint8_t*, int w, int h, int) {
     assert(x>=40 && x+w<=760 && y>=40 && y+h<=440); ++words;
   }
-  void update() { assert(words>0); ++updates; }
+  void update() { assert(words>0 && Diagnostics::busy); ++updates; }
 } display;
 ''' + renderer + '''
 int main() {
@@ -38,6 +46,7 @@ int main() {
   }
   drawClock("אין חיבור"); drawClock("ממתין לשעה");
   assert(display.updates==1442);
+  assert(Diagnostics::starts==1442 && Diagnostics::ends==1442 && !Diagnostics::busy);
   puts("Actual firmware renderer: 1440 minutes + 2 status messages fit, no missing words");
 }
 ''')
