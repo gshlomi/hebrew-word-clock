@@ -41,10 +41,33 @@ Use a **POSIX TZ rule**, not an IANA name such as `Asia/Jerusalem`:
 
 POSIX offset signs are reversed: `CET-1` means UTC+1. Rules with DST apply it
 automatically. Legal timezone changes may require updating the rule.
-**Rebuild and upload** after changing this compile-time setting; there is no
-runtime settings menu. Existing `secrets.h` files without the setting continue to
-use Israel time via the fallback in `hebrew_clock/config.h`. Hebrew wording is
-unchanged; only the local hour and minute change.
+`CLOCK_TIMEZONE` is the initial/default POSIX rule. Changing that build default
+requires rebuilding and uploading. For everyday changes, use the webpage below;
+saved runtime settings take precedence and persist across reboot and ordinary uploads.
+Hebrew wording is unchanged; only the local hour and minute change.
+
+### Runtime settings webpage
+
+After the initial USB firmware upload, open `http://<device-ip>/`:
+
+1. Choose an IANA location such as **Asia/Jerusalem** from the timezone dropdown.
+2. Set **Enable remote syslog**, server IPv4 and UDP port as desired.
+3. Click **Save settings**. The complete settings record is stored in ESP32 NVS
+   flash, checked for write success, and applied without reboot or rebuild.
+
+Timezone changes trigger a display refresh when the display task is available;
+an already-running or stuck ePaper update cannot be interrupted. Syslog changes
+apply to subsequent queue processing. Disabling forwarding keeps the address and
+port for later re-enabling, and does not disable local diagnostics or logs.
+Status polling does not overwrite unsaved form edits. Invalid settings are rejected.
+
+The offline IANA dropdown uses the bundled MIT-licensed
+[nayarsystems/posix_tz_db](https://github.com/nayarsystems/posix_tz_db) mapping.
+**Firmware default** selects the compiled `CLOCK_TIMEZONE` rule. IANA selections
+are translated to POSIX on the device, and both the name and rule are saved.
+This is not a full historical timezone database. Future law changes require a
+mapping/firmware update and re-saving the location; there is no automatic online
+mapping update. See `third_party/posix_tz_db/README.md` for regeneration.
 
 ## Arduino IDE alternative
 
@@ -93,6 +116,7 @@ python -m pip install pillow==13.0.0
 python arduino/tools/generate_words.py
 python arduino/tools/test_render.py
 python arduino/tools/test_timezone.py
+python arduino/tools/test_settings.py
 pio run
 ```
 
@@ -123,7 +147,7 @@ Build/render/timezone checks verified 2026-10-31 using the pinned dependencies:
 
 After uploading this firmware by USB, find **hebrew-clock** in your router's DHCP
 clients and open `http://<device-ip>/`. The hostname is a DHCP label, not a promise
-that `hebrew-clock.local` resolves. The read-only page refreshes every five seconds;
+that `hebrew-clock.local` resolves. The status area refreshes every five seconds;
 `/status` returns plain-text diagnostics and `/logs` downloads the last 48 log
 records. It shows uptime, numeric ESP-IDF reset reason, local time/sync validity,
 Wi-Fi/IP/RSSI, current/minimum heap, display-update start/return times, and syslog
@@ -141,7 +165,8 @@ block the display task. A stale-data warning appears if browser polling fails.
 
 ### Send logs to a syslog server
 
-Add these settings to your local, git-ignored `arduino/hebrew_clock/secrets.h`:
+Use the webpage toggle, IPv4 address and port, then Save. Alternatively, set initial
+defaults in your local, git-ignored `arduino/hebrew_clock/secrets.h`:
 
 ```cpp
 #define CLOCK_HOSTNAME "hebrew-clock"       // short ASCII hostname, no spaces
@@ -149,7 +174,8 @@ Add these settings to your local, git-ignored `arduino/hebrew_clock/secrets.h`:
 #define CLOCK_SYSLOG_PORT 514               // UDP listener port
 ```
 
-Rebuild and upload. Syslog is disabled by default (empty address); only numeric
+Rebuild and upload to change compile-time defaults; saved webpage settings take
+precedence. Syslog is disabled initially (empty address); only numeric
 IPv4 is supported. Configure the server to accept **UDP**, with RFC5424 messages,
 facility **local0**, application **hebrew-clock**. Packets use a NILVALUE timestamp
 and include device uptime in milliseconds; use the receiver's arrival timestamp
@@ -163,14 +189,17 @@ are not replayed after reconnect. A 24-record transmit queue bounds memory and
 reports overflow. Logs and refresh markers reset at reboot; reset reason is
 reported again on network connection. Library-internal Serial output is **not**
 captured/forwarded; use USB serial for driver-specific BUSY messages. No flash
-logging is performed.
+logging is performed; only settings are persisted to flash.
 
 This is an unauthenticated HTTP page and unencrypted syslog for a trusted LAN;
-do not port-forward it to the Internet. No Wi-Fi password is exposed by the page.
+do not port-forward it to the Internet. No Wi-Fi password is exposed by the page. Settings POSTs require a per-boot token
+and custom header to reject cross-origin form submissions; this is not login authentication.
 
 ### Hardware verification after upload
 
-1. Confirm the page is reachable and uptime advances while the display refreshes.
+1. Save a timezone and syslog configuration, reboot and confirm persistence.
+   Disable/re-enable syslog and verify receiver traffic stops/resumes while local logs continue.
+   Confirm the page is reachable and uptime advances while the display refreshes.
 2. Confirm the server receives connection/heartbeat and refresh start/return logs.
 3. Leave running beyond the reported ~90-minute failure window. If the panel
    freezes, save `/status` and `/logs` before resetting it; compare the last

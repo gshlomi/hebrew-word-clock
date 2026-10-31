@@ -15,6 +15,7 @@
 #include "secrets.example.h"
 #endif
 #include "config.h"
+#include "settings.h"
 #include "diagnostics.h"
 
 EPaper display;
@@ -76,6 +77,7 @@ void setup() {
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   configTzTime(CLOCK_TIMEZONE, "pool.ntp.org", "time.google.com");
+  Settings::begin();
   if (!Diagnostics::begin()) Serial.println("ERROR: diagnostics task allocation failed");
   Diagnostics::setPhase("display initialization");
   display.begin();
@@ -107,13 +109,16 @@ void loop() {
     return;
   }
   // After first sync, ESP32 system time continues during temporary WiFi outages.
-  if (now/60 != lastMinute) {
+  static unsigned lastSettingsRevision = 0;
+  unsigned settingsRevision = Settings::revision.load();
+  if (now/60 != lastMinute || settingsRevision != lastSettingsRevision) {
     tm local;
-    localtime_r(&now, &local);
+    Settings::local(now, &local);
     char text[160];
     buildTimeString(local.tm_hour, local.tm_min, text, sizeof(text));
     drawClock(text);
     lastMinute = now/60;
+    lastSettingsRevision = settingsRevision;
     Diagnostics::log(6, "clock %02d:%02d heap=%u", local.tm_hour, local.tm_min, ESP.getFreeHeap());
   }
   delay(200);

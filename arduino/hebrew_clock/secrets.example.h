@@ -2,7 +2,8 @@
 
 // Copy this file to secrets.h (git-ignored), then edit the values below.
 // All supported secrets.h settings are listed here. Rebuild and upload over
-// USB after changes; these are compile-time settings, not runtime preferences.
+// USB after changes. Timezone/syslog are initial defaults: saved webpage settings
+// override them. Use http://<device-ip>/ to change these without rebuilding.
 
 // Required: credentials for your 2.4 GHz Wi-Fi network.
 #define WIFI_SSID "YOUR_WIFI_SSID"
@@ -26,7 +27,7 @@
 #define CLOCK_SYSLOG_IP ""
 
 // Optional: syslog server's UDP listener port (1-65535). Default: 514.
-// Ignored while CLOCK_SYSLOG_IP is empty.
+// Initially ignored while CLOCK_SYSLOG_IP is empty; the webpage has an explicit toggle.
 #define CLOCK_SYSLOG_PORT 514
 
 // The four CLOCK_* settings above may be omitted to use config.h defaults.
